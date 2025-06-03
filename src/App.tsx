@@ -18,8 +18,8 @@ function App(): React.JSX.Element {
             screenOptions={{
               headerShown: false,
             }}>
-            <Stack.Screen name="Home" component={HomeScreen} />
-            <Stack.Screen name="Detail" component={DetailScreen} />
+            <Stack.Screen name="HomeScreen" component={HomeScreen} />
+            <Stack.Screen name="DetailScreen" component={DetailScreen} />
           </Stack.Navigator>
         </NavigationContainer>
       </SafeAreaProvider>

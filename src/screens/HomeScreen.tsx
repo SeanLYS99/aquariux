@@ -3,6 +3,8 @@ import {useNavigation} from '@react-navigation/native';
 import moment from 'moment';
 import React, {useEffect, useState} from 'react';
 import {
+  Alert,
+  Button,
   FlatList,
   Image,
   Keyboard,
@@ -13,10 +15,12 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import LoaderKit from 'react-native-loader-kit';
 import {DROPDOWN_OPTION, horizontalMargin} from '../constants/Common.constant';
 import {useAppDispatch, useAppSelector} from '../hooks';
-import {ApiMovieList, MovieResults} from '../interfaces/ApiMovieList.interface';
+import {MovieResults} from '../interfaces/ApiMovieList.interface';
 import {
+  fetchMovieDetailByIdAction,
   fetchMovieListAction,
   searchMovieByTitleAction,
 } from '../sagas/movies.saga';
@@ -32,14 +36,27 @@ const dropdownOption = [
 
 export default function HomeScreen() {
   const dispatch = useAppDispatch();
-  const navigation = useNavigation();
-  const movieList = useAppSelector(
-    state => state.movie.movieList,
-  ) as ApiMovieList;
+  const navigation = useNavigation<any>();
+  const {
+    data: movieList,
+    loading,
+    error,
+  } = useAppSelector(state => state.movie.movieList);
+  const {data: movieDetailData, error: movieDetailError} = useAppSelector(
+    state => state.movie.movieDetail,
+  );
 
   const [category, setCategory] = useState<any>(null);
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [onPressLoading, setOnPressLoading] = useState(false);
+
+  useEffect(() => {
+    if (movieDetailData) {
+      setOnPressLoading(false);
+      navigation.navigate('DetailScreen');
+    }
+  }, [movieDetailData]);
 
   useEffect(() => {
     const loadCategory = async () => {
@@ -58,6 +75,16 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
+    if (movieDetailError) {
+      Alert.alert(
+        'Error',
+        'Error fetching movie detail. Please try again later.',
+        [{text: 'OK', onPress: () => {}}],
+      );
+    }
+  }, [movieDetailError]);
+
+  useEffect(() => {
     if (category) {
       const saveCategory = async () => {
         try {
@@ -69,11 +96,11 @@ export default function HomeScreen() {
       saveCategory();
       dispatch(fetchMovieListAction({category: category?.value}));
     }
-  }, [category, dispatch]);
+  }, [category]);
 
   const onPressSearch = () => {
     Keyboard.dismiss();
-    dispatch(setMovieList(null));
+    dispatch(setMovieList({data: null, loading: false, error: false}));
     if (!searchKeyword) {
       dispatch(fetchMovieListAction({category: category?.value}));
       return;
@@ -81,10 +108,22 @@ export default function HomeScreen() {
     dispatch(searchMovieByTitleAction({title: searchKeyword}));
   };
 
+  const subsequentFetchAction = () => {
+    dispatch(
+      fetchMovieListAction({
+        category: category?.value,
+        pageNo: (movieList?.page ?? 0) + 1,
+      }),
+    );
+  };
+
   const renderMovieItem = ({item}: {item: MovieResults}) => (
     <TouchableOpacity
       style={styles.movieCard}
-      onPress={() => navigation.navigate('Detail')}>
+      onPress={() => {
+        setOnPressLoading(true);
+        dispatch(fetchMovieDetailByIdAction(item?.id));
+      }}>
       <Image
         source={{uri: `https://image.tmdb.org/t/p/w500/${item?.poster_path}`}}
         style={styles.posterImage}
@@ -109,123 +148,171 @@ export default function HomeScreen() {
     }
     return (
       <View style={styles.loadMoreContainer}>
-        <TouchableOpacity
-          style={styles.loadMoreButton}
-          onPress={() =>
-            dispatch(
-              fetchMovieListAction({
-                category: category?.value,
-                pageNo: movieList?.page + 1,
-              }),
-            )
-          }>
-          <Text style={styles.loadMoreText}>Load More</Text>
-        </TouchableOpacity>
+        {loading ? (
+          <LoaderKit
+            style={styles.loader}
+            name={'BallSpinFadeLoader'}
+            color={'#90CEA1'}
+          />
+        ) : error ? (
+          <View style={styles.errorLabel}>
+            <Text>Unable to retrieve movie list. Please try again.</Text>
+            <Button title="Retry" onPress={subsequentFetchAction} />
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.loadMoreButton}
+            onPress={subsequentFetchAction}>
+            <Text style={styles.loadMoreText}>Load More</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   };
 
   return (
-    <SafeAreaView style={styles.safeAreaContainer}>
-      <View style={styles.container}>
-        <View style={{marginHorizontal: horizontalMargin}}>
-          <Image
-            source={require('../assets/Logo.png')}
-            resizeMode="contain"
-            style={styles.logo}
-          />
-          <TouchableOpacity
-            style={styles.filterContainer}
-            onPress={() => setIsCategoryOpen(!isCategoryOpen)}>
-            <View
-              style={{
-                flexDirection: 'row',
-                height: 50,
-              }}>
-              <Text style={styles.filterLabel}>{category?.label}</Text>
-              <View style={styles.rightIconContainer}>
-                <Image
-                  source={require('../assets/chevron-right.png')}
-                  style={[
-                    styles.rightIcon,
-                    {
-                      transform: [
-                        {
-                          rotate: isCategoryOpen ? '90deg' : '0deg',
-                        },
-                      ],
-                    },
-                  ]}
-                />
-              </View>
-            </View>
-
-            {isCategoryOpen && (
-              <View style={styles.optionContainer}>
-                {dropdownOption.map((it, idx) => (
-                  <TouchableOpacity
-                    key={idx}
+    <>
+      <SafeAreaView style={styles.safeAreaContainer}>
+        <View style={styles.container}>
+          <View style={{marginHorizontal: horizontalMargin}}>
+            <Image
+              source={require('../assets/Logo.png')}
+              resizeMode="contain"
+              style={styles.logo}
+            />
+            <TouchableOpacity
+              style={styles.filterContainer}
+              onPress={() => setIsCategoryOpen(!isCategoryOpen)}>
+              <View style={styles.filter}>
+                <Text style={styles.filterLabel}>{category?.label}</Text>
+                <View style={styles.rightIconContainer}>
+                  <Image
+                    source={require('../assets/chevron-right.png')}
                     style={[
-                      styles.option,
-                      // eslint-disable-next-line react-native/no-inline-styles
+                      styles.rightIcon,
                       {
-                        marginBottom:
-                          idx === dropdownOption.length - 1 ? 0 : 10,
-
-                        backgroundColor:
-                          category?.value === it?.value ? '#00B4E4' : '#F8F8F8',
+                        transform: [
+                          {
+                            rotate: isCategoryOpen ? '90deg' : '0deg',
+                          },
+                        ],
                       },
                     ]}
-                    onPress={() => {
-                      dispatch(setMovieList(null));
-                      setCategory(it);
-                      setIsCategoryOpen(false);
-                    }}>
-                    <Text
-                      style={{
-                        color:
-                          category?.value === it?.value ? 'white' : 'black',
-                      }}>
-                      {it.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                  />
+                </View>
               </View>
-            )}
-          </TouchableOpacity>
 
-          <View style={styles.searchContainer}>
-            <TextInput
-              value={searchKeyword}
-              onChangeText={setSearchKeyword}
-              placeholder="Search..."
-              placeholderTextColor={'#999999'}
-              style={styles.textInput}
-              returnKeyType="search"
-              onSubmitEditing={onPressSearch}
+              {isCategoryOpen && (
+                <View style={styles.optionContainer}>
+                  {dropdownOption.map((it, idx) => (
+                    <TouchableOpacity
+                      key={idx}
+                      style={[
+                        styles.option,
+                        // eslint-disable-next-line react-native/no-inline-styles
+                        {
+                          marginBottom:
+                            idx === dropdownOption.length - 1 ? 0 : 10,
+
+                          backgroundColor:
+                            category?.value === it?.value
+                              ? '#00B4E4'
+                              : '#F8F8F8',
+                        },
+                      ]}
+                      onPress={() => {
+                        dispatch(
+                          setMovieList({
+                            data: null,
+                            loading: false,
+                            error: false,
+                          }),
+                        );
+                        setCategory(it);
+                        setIsCategoryOpen(false);
+                      }}>
+                      <Text
+                        style={{
+                          color:
+                            category?.value === it?.value ? 'white' : 'black',
+                        }}>
+                        {it.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <View style={styles.searchContainer}>
+              <TextInput
+                value={searchKeyword}
+                onChangeText={setSearchKeyword}
+                placeholder="Search..."
+                placeholderTextColor={'#999999'}
+                style={styles.textInput}
+                returnKeyType="search"
+                onSubmitEditing={onPressSearch}
+              />
+            </View>
+
+            <TouchableOpacity
+              activeOpacity={1}
+              style={styles.searchButton}
+              onPress={onPressSearch}>
+              <Text style={styles.searchButtonText}>Search</Text>
+            </TouchableOpacity>
+          </View>
+          {movieList && (
+            <>
+              <FlatList
+                data={movieList?.results}
+                keyExtractor={(item, idx) => `${item?.id?.toString()}-${idx}`}
+                renderItem={renderMovieItem}
+                contentContainerStyle={styles.listContent}
+                showsVerticalScrollIndicator={false}
+                ListFooterComponent={renderLoadMoreButton}
+              />
+            </>
+          )}
+          {loading && !movieList && (
+            <LoaderKit
+              style={styles.loader}
+              name={'BallSpinFadeLoader'}
+              color={'#90CEA1'}
+            />
+          )}
+          {error && !movieList && (
+            <View style={styles.errorLabel}>
+              <Text>Unable to retrieve movie list. Please try again.</Text>
+              <Button
+                title="Retry"
+                onPress={() =>
+                  dispatch(
+                    fetchMovieListAction({
+                      category: category?.value,
+                      pageNo: 1,
+                    }),
+                  )
+                }
+              />
+            </View>
+          )}
+        </View>
+      </SafeAreaView>
+      {onPressLoading && (
+        <>
+          <View style={styles.fullPageBackground} />
+          <View style={styles.fullPageLoaderContainer}>
+            <LoaderKit
+              style={styles.fullPageLoader}
+              name={'BallSpinFadeLoader'}
+              color={'#90CEA1'}
             />
           </View>
-
-          <TouchableOpacity
-            activeOpacity={1}
-            style={styles.searchButton}
-            onPress={onPressSearch}>
-            <Text style={styles.searchButtonText}>Search</Text>
-          </TouchableOpacity>
-        </View>
-
-        {movieList && (
-          <FlatList
-            data={movieList?.results}
-            keyExtractor={item => item?.id?.toString()}
-            renderItem={renderMovieItem}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-            ListFooterComponent={renderLoadMoreButton}
-          />
-        )}
-      </View>
-    </SafeAreaView>
+        </>
+      )}
+    </>
   );
 }
 
@@ -255,6 +342,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 5,
     elevation: 3,
+  },
+  filter: {
+    flexDirection: 'row',
+    height: 50,
   },
   optionContainer: {
     padding: 14,
@@ -384,5 +475,35 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 20,
     color: '#fff',
+  },
+  errorLabel: {
+    marginHorizontal: horizontalMargin,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loader: {
+    alignSelf: 'center',
+    width: 40,
+    height: 40,
+  },
+  fullPageBackground: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'black',
+    opacity: 0.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullPageLoaderContainer: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullPageLoader: {
+    width: 50,
+    height: 50,
   },
 });
