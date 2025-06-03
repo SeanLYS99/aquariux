@@ -94,6 +94,7 @@ export default function HomeScreen() {
         }
       };
       saveCategory();
+      setSearchKeyword('');
       dispatch(fetchMovieListAction({category: category?.value}));
     }
   }, [category]);
@@ -109,6 +110,15 @@ export default function HomeScreen() {
   };
 
   const subsequentFetchAction = () => {
+    if (searchKeyword !== '') {
+      dispatch(
+        searchMovieByTitleAction({
+          title: searchKeyword,
+          pageNo: (movieList?.page ?? 0) + 1,
+        }),
+      );
+      return;
+    }
     dispatch(
       fetchMovieListAction({
         category: category?.value,
@@ -265,14 +275,18 @@ export default function HomeScreen() {
           </View>
           {movieList && (
             <>
-              <FlatList
-                data={movieList?.results}
-                keyExtractor={(item, idx) => `${item?.id?.toString()}-${idx}`}
-                renderItem={renderMovieItem}
-                contentContainerStyle={styles.listContent}
-                showsVerticalScrollIndicator={false}
-                ListFooterComponent={renderLoadMoreButton}
-              />
+              {movieList?.results?.length > 0 ? (
+                <FlatList
+                  data={movieList?.results}
+                  keyExtractor={(item, idx) => `${item?.id?.toString()}-${idx}`}
+                  renderItem={renderMovieItem}
+                  contentContainerStyle={styles.listContent}
+                  showsVerticalScrollIndicator={false}
+                  ListFooterComponent={renderLoadMoreButton}
+                />
+              ) : (
+                <Text style={{alignSelf: 'center'}}>No results found</Text>
+              )}
             </>
           )}
           {loading && !movieList && (

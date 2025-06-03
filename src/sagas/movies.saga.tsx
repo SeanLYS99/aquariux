@@ -49,6 +49,14 @@ export function* fetchMovieList(
               : data,
         }),
       );
+    } else {
+      yield put(
+        setMovieList({
+          ...movieList,
+          loading: false,
+          error: true,
+        }),
+      );
     }
   } catch (error) {
     yield put(
@@ -96,6 +104,14 @@ export function* searchMovieByTitle(
                 results: [...movieList?.data?.results, ...data?.results],
               }
             : data,
+        }),
+      );
+    } else {
+      yield put(
+        setMovieList({
+          ...movieList,
+          loading: false,
+          error: true,
         }),
       );
     }
