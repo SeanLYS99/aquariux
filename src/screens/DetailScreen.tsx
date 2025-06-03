@@ -12,10 +12,12 @@ import {
 } from 'react-native';
 import {Circle, Svg} from 'react-native-svg';
 import {horizontalMargin} from '../constants/Common.constant';
-import {useAppSelector} from '../hooks';
+import {useAppDispatch, useAppSelector} from '../hooks';
+import {setMovieDetail} from '../slice/movies.slice';
 
 export default function DetailScreen() {
   const navigation = useNavigation();
+  const dispatch = useAppDispatch();
   const {data} = useAppSelector(state => state.movie.movieDetail);
 
   function formatMinutes(totalMinutes: number): string {
@@ -112,10 +114,17 @@ export default function DetailScreen() {
         <View style={styles.blueBg}>
           <View>
             <View style={styles.darkBg} />
-            <TouchableOpacity onPress={() => navigation.goBack()}>
+            <TouchableOpacity
+              onPress={() => {
+                navigation.goBack();
+                dispatch(
+                  setMovieDetail({data: null, loading: false, error: false}),
+                );
+              }}
+              style={styles.backButtonContainer}>
               <Image
                 source={require('../assets/back.png')}
-                style={styles.backIcon}
+                style={styles.backIconImage}
               />
             </TouchableOpacity>
 
@@ -299,13 +308,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'black',
     opacity: 0.15,
   },
-  backIcon: {
-    width: 31,
-    height: 38,
-    color: '#000',
+  backButtonContainer: {
     position: 'absolute',
     top: 20,
     left: horizontalMargin - 10,
+    width: 31,
+    height: 38,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  backIconImage: {
+    width: 31,
+    height: 38,
   },
   poster: {
     width: '100%',
